@@ -60,7 +60,7 @@ public class Group88Logic implements IQueensLogic {
         createQueensRule();
     }
 
-    // For each row create a rule that ensures at least one queen can be placed in that row
+    // For each column create a rule that ensures at least one queen can be placed in that column
     private void createQueensRule() {
         for(int col = 0; col < size; col++){
             var columnBDD = False;
