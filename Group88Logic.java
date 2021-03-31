@@ -14,10 +14,11 @@ public class Group88Logic implements IQueensLogic {
         this.size = size;
         this.board = new int[size][size];
 
-        fact = JFactory.init(2000000,200000);
+        fact = JFactory.init(2000000,200000); // Init with recommended nodes and cache
         nVars = size*size;
         fact.setVarNum(nVars); 
 
+        // Set true and false variables
         True = fact.one();
         False = fact.zero();
 
@@ -31,21 +32,23 @@ public class Group88Logic implements IQueensLogic {
         return board;
     }
 
+    // If move is valid, insert queen, update the BDD and update graphics
     public void insertQueen(int col, int row) {
         if (!invalidMove(col, row)) {
             board[col][row] = 1;
         }
-    
-        var testBDD = this.bdd.restrict(fact.ithVar(getVarFromPosition(col, row)));
-        bdd = testBDD;
+        var newBDD = this.bdd.restrict(fact.ithVar(getVarNum(col, row)));
+        bdd = newBDD;
 
         updateBoard();
     }
 
-    private int getVarFromPosition(int col, int row)  {
+    // Return variable corresponding to position on the board
+    private int getVarNum(int col, int row)  {
         return size * row + col;
     }
 
+    // For each position on the board, create rules for restricted moves
     private void createRules() {
         for (int col = 0; col < size; col++) {
             for (int row = 0; row < size; row++) {
@@ -54,72 +57,72 @@ public class Group88Logic implements IQueensLogic {
                 createDiagonalRule(col, row);
             }
         }
-        createSizeQueensRule();
+        createQueensRule();
     }
 
-    private void createSizeQueensRule() {
-        // For each column create a rule that ensures at least one queen in that column
+    // For each column create a rule that ensures at least one queen in that column
+    private void createQueensRule() {
         for(int col = 0; col < size; col++){
-            var tempBDDFalse = False;
+            var columnBDD = False;
 
             for (int row = 0; row < size; row++) {
-                tempBDDFalse = tempBDDFalse.or(fact.ithVar(getVarFromPosition(col, row)));
+                columnBDD = columnBDD.or(fact.ithVar(getVarNum(col, row)));
             }
 
-            bdd = bdd.and(tempBDDFalse);
+            bdd = bdd.and(columnBDD);
         }
     }
 
+    // Make sure that queens can't be attacked vertically
     private void createColumnRule(int col, int row) {
-        var tempBDDTrue = True;
-        var tempBDDFalse = False;
+        var columnBDD = True;
 
         // Set all other rows in this column to false
         for(int y = 0; y < size; y++){
             if(y != row){
-                tempBDDTrue = tempBDDTrue.and(fact.nithVar(getVarFromPosition(col, y)));
+                columnBDD = columnBDD.and(fact.nithVar(getVarNum(col, y)));
             }
         }
 
         // Not col,row
-        tempBDDFalse = tempBDDFalse.or(fact.nithVar(getVarFromPosition(col, row)));
+        var subBDD = fact.nithVar(getVarNum(col, row));
 
         // (not col,row) or (not (all other rows in this column "anded" together))
-        tempBDDFalse = tempBDDFalse.or(tempBDDTrue);
+        subBDD = subBDD.or(columnBDD);
 
-        bdd = bdd.and(tempBDDFalse);
+        bdd = bdd.and(subBDD);
     }
 
+    // Make sure that queens can't be attacked horizontally
     private void createRowRule(int col, int row) {
-        var tempBDDTrue = True;
-        var tempBDDFalse = False;
+        var rowBDD = True;
 
-        // Set all other rows in this column to false
+        // Set all other columns in this row to false
         for(int x = 0; x < size; x++){
             if(x != col){
-                tempBDDTrue = tempBDDTrue.and(fact.nithVar(getVarFromPosition(x, row)));
+                rowBDD = rowBDD.and(fact.nithVar(getVarNum(x, row)));
             }
         }
 
         // Not col,row
-        tempBDDFalse = tempBDDFalse.or(fact.nithVar(getVarFromPosition(col, row)));
+        var subBDD = fact.nithVar(getVarNum(col, row));
 
-        // (not col,row) or (not (all other rows in this column "anded" together))
-        tempBDDFalse = tempBDDFalse.or(tempBDDTrue);
+        // (not col,row) or (not (all other columns in this row "anded" together))
+        subBDD = subBDD.or(rowBDD);
 
-        bdd = bdd.and(tempBDDFalse);
+        bdd = bdd.and(subBDD);
     }
 
+    // Make sure that queens can't be attacked diagonally
     private void createDiagonalRule(int col, int row) {
-        var tempBDDTrue = True;
-        var tempBDDFalse = False;
+        var diagonalBDD = True;
 
         int x = col;
         int y = row;
 
         while (x < size && y < size) {
             if(x != col && y != row)
-                tempBDDTrue = tempBDDTrue.and(fact.nithVar(getVarFromPosition(x, y)));
+                diagonalBDD = diagonalBDD.and(fact.nithVar(getVarNum(x, y)));
             x++;
             y++;
         }
@@ -129,7 +132,7 @@ public class Group88Logic implements IQueensLogic {
 
         while (x >= 0 && y >= 0) {
             if(x != col && y != row)
-                tempBDDTrue = tempBDDTrue.and(fact.nithVar(getVarFromPosition(x, y)));
+                diagonalBDD = diagonalBDD.and(fact.nithVar(getVarNum(x, y)));
             x--;
             y--;
         }
@@ -139,7 +142,7 @@ public class Group88Logic implements IQueensLogic {
 
         while (x >= 0 && y < size) {
             if(x != col && y != row)
-                tempBDDTrue = tempBDDTrue.and(fact.nithVar(getVarFromPosition(x, y)));
+                diagonalBDD = diagonalBDD.and(fact.nithVar(getVarNum(x, y)));
             x--;
             y++;
         }
@@ -149,36 +152,40 @@ public class Group88Logic implements IQueensLogic {
 
         while (x < size && y >= 0) {
             if(x != col && y != row)
-                tempBDDTrue = tempBDDTrue.and(fact.nithVar(getVarFromPosition(x, y)));
+                diagonalBDD = diagonalBDD.and(fact.nithVar(getVarNum(x, y)));
             x++;
             y--;
         }
 
-        tempBDDFalse = tempBDDFalse.or(fact.nithVar(getVarFromPosition(col, row)));
+        // Not col,row
+        var subBDD = fact.nithVar(getVarNum(col, row));
 
-        tempBDDFalse = tempBDDFalse.or(tempBDDTrue);
+        subBDD = subBDD.or(diagonalBDD);
 
-        bdd = bdd.and(tempBDDFalse);
+        bdd = bdd.and(subBDD);
     }
 
+    // Check if BDD can be true if we insert a queen on this col and row
     private boolean invalidMove(int col, int row) {
-        // Check if BDD can be true if we insert a queen on this col and row
-        var testBDD = this.bdd.restrict(fact.ithVar(getVarFromPosition(col, row)));
+        var testBDD = this.bdd.restrict(fact.ithVar(getVarNum(col, row)));
         return testBDD.isZero();
     }
 
+    // Check if a queen has to be inserted on the given position
     private boolean mustDoMove(int col, int row) {
-        var testBDD = this.bdd.restrict(fact.nithVar(getVarFromPosition(col, row)));
+        var testBDD = this.bdd.restrict(fact.nithVar(getVarNum(col, row)));
         return testBDD.isZero();
     }
 
+    // Update restricted positions, and automatically insert queens that must be inserted
     private void updateBoard() {
         for (int col = 0; col < size; col++) {
             for (int row = 0; row < size; row++) {
                 if (invalidMove(col, row)) board[col][row] = -1;
                 if (mustDoMove(col, row)) {
+                    // Insert queen automatically
                     board[col][row] = 1;
-                    bdd = this.bdd.restrict(fact.ithVar(getVarFromPosition(col, row)));
+                    bdd = this.bdd.restrict(fact.ithVar(getVarNum(col, row)));
                 }
             }
         }
